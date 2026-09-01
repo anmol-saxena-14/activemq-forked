@@ -92,8 +92,16 @@ public class StartCommand extends AbstractCommand {
                 throw e;
             }
 
-            if (!broker.waitUntilStarted()) {
-                throw new Exception(broker.getStartException());
+            // waitUntilStarted() applies a fixed timeout (BrokerService.DEFAULT_START_TIMEOUT,
+            // 10 minutes). A broker legitimately waiting to become master (e.g. a slave
+            // blocked on the shared-storage lock, especially with startAsync="true") can take
+            // far longer than that with no error at all, so a timeout by itself does not mean
+            // startup failed. Only bail out here if the broker actually recorded a start
+            // exception; otherwise keep waiting.
+            while (!broker.waitUntilStarted()) {
+                if (broker.getStartException() != null) {
+                    throw new Exception(broker.getStartException());
+                }
             }
 
             // The broker started up fine.  Now lets wait for it to stop...
